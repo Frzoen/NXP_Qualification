@@ -11,13 +11,21 @@
 #define UART2_C2_RIE_MASK	0x20
 #define UART2_S1_TDRE_MASK	0x80
 #define UART2_S1_RDRF_MASK	0x20
+#define BUFFER_LENGTH		128
 
 /**************************
  * Variables definitions
  **************************/
 static volatile uint8_t byteReceived;
-static volatile uint8_t readyToTransmit;
+static volatile uint8_t readyToTransmit = 1;
 static volatile uint8_t flagIsReceived;
+static volatile uint8_t bufferTransmit[BUFFER_LENGTH];
+static volatile uint8_t bufferSize = BUFFER_LENGTH;
+static volatile uint8_t j = 0;
+
+static volatile uint8_t queueHead = 0;
+static volatile uint8_t queueTail;
+
 
 
 /***********************************************************************
@@ -47,11 +55,11 @@ void initUART2(void) {
 	 * 	(SBR[12:0] = (UART Module Clock) / ((baud rate) x 16)
 	 * 	SBR[12:0] = 13
 	 */
-	UART2_BDL = UART_BDL_SBR(156);	// 156 - 9600 bps 13-115200
+	UART2_BDL = UART_BDL_SBR(13);	// 156 - 9600 bps
 	UART2_BDH = UART_BDH_SBR(0);
 	
 	/*	Set Hardware interrupt requested when TDRE flag is 1 */
-	UART2_C2 |= UART2_C2_TIE_MASK;
+	//UART2_C2 |= UART2_C2_TIE_MASK;
 	
 	/*	Receiver Interrupt Enable for RDRF
 	 * 		1 Hardware interrupt requested when RDRF flag is 1.
@@ -61,7 +69,6 @@ void initUART2(void) {
 	/* Set the ICPR and ISER registers accordingly */
 	NVIC_ICPR = 1 << ((INT_UART2 -16)%32);
 	NVIC_ISER = 1 << ((INT_UART2 -16)%32);
-
 	
 	/*	Enable Transmitter */
 	UART2_C2 |= UART_C2_TE_MASK;
@@ -69,7 +76,6 @@ void initUART2(void) {
 	/*	Enable Receiver */
 	UART2_C2 |= UART_C2_RE_MASK;
 	
-
 }
 
 /***********************************************************************
@@ -89,11 +95,11 @@ void initUART2(void) {
  * 
  ***********************************************************************/ 
 void transmitByte(uint8_t byte) {
-	if (isReadyToTransmit) {
+	/*if (isReadyToTransmit) {
 		readyToTransmit = 0;
 		UART2_C2 |= UART2_C2_TIE_MASK;
 		UART2_D = byte;
-	}		
+	}	*/	
 }
 
 /***********************************************************************
@@ -155,18 +161,22 @@ char getReceived(void) {
  * Returns:		
  ***********************************************************************/
 void printt(char buffer[]) {
-	uint8_t i = 0;
+	
+	/* Count the number of chars */ 
+	int length = 0;
+	while (buffer[length] != 0)
+		length++;
 
-	while (buffer[i] != 0) {
-		if (readyToTransmit) {
-			UART2_D = buffer[i];
-			i++;
-			readyToTransmit = 0;
-			UART2_C2 |= UART2_C2_TIE_MASK;
-		}
-		//readyToTransmit = 1; // na sile
-	}
+	/* Copy the array to a buffer */
+	int k;
+	for (k = 0; k < length; k++)
+		bufferTransmit[queueTail+k] = buffer[k];
 
+	/* Compute a new queueTail value */
+	queueTail = (queueTail + length) % BUFFER_LENGTH;
+		
+	/* Enable interrupts for TDRE*/
+	UART2_C2 |= UART2_C2_TIE_MASK;
 }
 
 /***********************************************************************
@@ -189,8 +199,24 @@ void UART2_IRQHandler() {
 	}
 	/* Interrupt from Transmit Data Register Empty Flag */
 	else if (UART2_S1 & UART2_S1_TDRE_MASK) {
-		UART2_C2 &= ~(UART2_C2_TIE_MASK);
-		readyToTransmit = 1;
+		
+		UART2_D = bufferTransmit[queueHead];
+		queueHead = (queueHead + 1) % BUFFER_LENGTH;
+		// wylaczyc przerwanie jezeli wszystko wyslane
+		if (!(queueTail - queueHead)) {
+			UART2_C2 &= ~(UART2_C2_TIE_MASK);
+		}
+		
+		/*if (j < bufferSize) {
+			UART2_D = bufferTransmit[j];
+			j++;
+		}
+		else {
+			UART2_C2 &= ~(UART2_C2_TIE_MASK);
+			readyToTransmit = 1;
+			j = 0;
+		}*/
+		
 	}
 }
 

@@ -534,6 +534,7 @@ int main(void)
 
 void FTM1_IRQHandler()				// TPM1 ISR
 {
+	printt("test\n\r");
 	TPM1_SC |= 0x80;							// clear TPM1 ISR flag
 	//GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);						// red LED on
 	GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);							// indicator on
@@ -609,6 +610,7 @@ void FTM1_IRQHandler()				// TPM1 ISR
 //		char uartBuff[7];
 //		sprintf(uartBuff, "%03d\n\n", BlackLinePos[0]);
 //		printt("der\n\r");
+		
 		if (state & LEWO_FLAG)
 		{
 			calculateServoLeft();

@@ -7,6 +7,7 @@ void receiveByte(uint8_t *byte);
 char getReceived(void);
 int isReceived(void);
 int isReadyToTransmit(void);
+void transmitBytes(char bytes[], uint8_t length);
 void printt(char buffer[]);
 
 

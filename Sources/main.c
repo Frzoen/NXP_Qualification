@@ -630,7 +630,18 @@ void FTM1_IRQHandler()				// TPM1 ISR
 		}
 		else
 		{
-			calculateServoNewPos();
+			if (BlackLinePos[0] < LINESCAN_MIDDLE)
+				{
+					state &= SRODEK_FLAG;
+					state |= LEWO_FLAG;
+					calculateServoLeft();
+				}
+				else if (BlackLinePos[0] >= LINESCAN_MIDDLE)
+				{
+					state &= SRODEK_FLAG;
+					state |= PRAWO_FLAG;
+					calculateServoRight();
+				}
 			// all LEDs off
 			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);   // red LED off
 			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);   // green LED off
@@ -708,21 +719,6 @@ void calculateServoRight(void)
 	}
 }
 
-void calculateServoNewPos(void)
-{
-	if (BlackLinePos[0] < LINESCAN_MIDDLE)
-	{
-		state &= SRODEK_FLAG;
-		state |= LEWO_FLAG;
-		calculateServoLeft();
-	}
-	else if (BlackLinePos[0] >= LINESCAN_MIDDLE)
-	{
-		state &= SRODEK_FLAG;
-		state |= PRAWO_FLAG;
-		calculateServoRight();
-	}
-}
 
 void servoWrite(int _servoValue) //-255 to 255
 {

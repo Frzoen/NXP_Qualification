@@ -11,7 +11,7 @@
 #define UART2_C2_RIE_MASK	0x20
 #define UART2_S1_TDRE_MASK	0x80
 #define UART2_S1_RDRF_MASK	0x20
-#define BUFFER_LENGTH		128
+#define BUFFER_LENGTH		255
 
 /**************************
  * Variables definitions
@@ -20,8 +20,6 @@ static volatile uint8_t byteReceived;
 static volatile uint8_t readyToTransmit = 1;
 static volatile uint8_t flagIsReceived;
 static volatile uint8_t bufferTransmit[BUFFER_LENGTH];
-static volatile uint8_t bufferSize = BUFFER_LENGTH;
-static volatile uint8_t j = 0;
 
 static volatile uint8_t queueHead = 0;
 static volatile uint8_t queueTail;
@@ -164,16 +162,13 @@ void printt(char buffer[]) {
 	
 	/* Count the number of chars */ 
 	int length = 0;
-	while (buffer[length] != 0)
+	while (buffer[length] != 0) {
+		bufferTransmit[(queueTail + length) % BUFFER_LENGTH] = buffer[length];
 		length++;
-
-	/* Copy the array to a buffer */
-	int k;
-	for (k = 0; k < length; k++)
-		bufferTransmit[queueTail+k] = buffer[k];
+	}
 
 	/* Compute a new queueTail value */
-	queueTail = (queueTail + length) % BUFFER_LENGTH;
+	queueTail = ((queueTail + length) % BUFFER_LENGTH);
 		
 	/* Enable interrupts for TDRE*/
 	UART2_C2 |= UART2_C2_TIE_MASK;
@@ -191,32 +186,23 @@ void printt(char buffer[]) {
  * 
  ***********************************************************************/
 void UART2_IRQHandler() {
-
+	
 	/*	Interrupt from RX pin */
 	if (UART2_S1 & UART2_S1_RDRF_MASK) {
 		byteReceived = UART2_D;
 		flagIsReceived = 1;
 	}
 	/* Interrupt from Transmit Data Register Empty Flag */
-	else if (UART2_S1 & UART2_S1_TDRE_MASK) {
+	else if (UART2_S1 & UART2_S1_TDRE_MASK) {				
 		
-		UART2_D = bufferTransmit[queueHead];
-		queueHead = (queueHead + 1) % BUFFER_LENGTH;
-		// wylaczyc przerwanie jezeli wszystko wyslane
-		if (!(queueTail - queueHead)) {
+		/* Disable interrupts if everything sent */
+		if (queueTail == queueHead) {
 			UART2_C2 &= ~(UART2_C2_TIE_MASK);
-		}
-		
-		/*if (j < bufferSize) {
-			UART2_D = bufferTransmit[j];
-			j++;
 		}
 		else {
-			UART2_C2 &= ~(UART2_C2_TIE_MASK);
-			readyToTransmit = 1;
-			j = 0;
-		}*/
-		
+			UART2_D = bufferTransmit[queueHead];
+			queueHead = ((queueHead + 1) % BUFFER_LENGTH);
+		}
 	}
 }
 

@@ -357,6 +357,7 @@ abs(int);
 
 // Variable declaration
 int i;										// counter for loops
+int j;
 volatile int numberOfDer;									// counter for pos
 int temp_reg;								// temporary register
 volatile int ImageData[128];				// array to store the LineScan image
@@ -372,7 +373,7 @@ int CompareData;						// set data for comparison to find max
 
 volatile uint8_t state = 0x00;
 
-int servoWrite(int _serwoValue);
+void servoWrite(int _serwoValue);
 void calculateServoLeft(void);
 void calculateServoRight(void);
 void calculateServoNewPos(void);
@@ -511,8 +512,6 @@ int main(void)
 	NVIC_ISER |= (1 << 18);			// enable interrupt 18
 
 	//kody michasia do uarta 
-	int uartVar;
-	char uartBuff[16];
 	initUART2();
 	printt("Alamak Synergy Menu\n\r");
 
@@ -523,7 +522,6 @@ int main(void)
 	//status preparation
 	state |= START_FLAG | SRODEK_FLAG;
 
-	servoWrite(SERVO_MIDDLE_VALUE);
 	// Main loop
 	for (;;)
 	{						// endless loop
@@ -600,7 +598,7 @@ void FTM1_IRQHandler()				// TPM1 ISR
 	if (numberOfDer == 0 || numberOfDer >= 2)
 	{
 		state = START_FLAG | SRODEK_FLAG;
-		servoWrite(SERVO_MIDDLE_VALUE);
+		TPM1_C0V = SERVO_DEAFULT_REGISTER_VALUE;
 		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);  // green LED on
 		GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);   // blue LED on	
 		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);  // red LED on
@@ -608,6 +606,9 @@ void FTM1_IRQHandler()				// TPM1 ISR
 	}
 	else if (numberOfDer <= 2)
 	{
+//		char uartBuff[7];
+//		sprintf(uartBuff, "%03d\n\n", BlackLinePos[0]);
+//		printt("der\n\r");
 		if (state & LEWO_FLAG)
 		{
 			calculateServoLeft();
@@ -617,8 +618,9 @@ void FTM1_IRQHandler()				// TPM1 ISR
 			GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);  // red LED on
 
 		}
-		if (state & PRAWO_FLAG)
+		else if (state & PRAWO_FLAG)
 		{
+			TPM1_C0V = SERVO_MAXIMAL_REGISTER_VALUE;
 			calculateServoRight();
 			// all LEDs off
 			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);   // red LED off
@@ -626,7 +628,6 @@ void FTM1_IRQHandler()				// TPM1 ISR
 
 			GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);  // green LED on
 		}
-
 		else
 		{
 			calculateServoNewPos();
@@ -636,70 +637,9 @@ void FTM1_IRQHandler()				// TPM1 ISR
 
 			GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);   // blue LED on	
 		}
+
 	}
-
-//		CompareData = THRESHOLD;					// threshold
-//		BlackLineRight = 126;
-//		for (i = 64; i < 127; i++) {
-//			if (ImageDataDifference[i] > CompareData) {
-//				CompareData = ImageDataDifference[i];
-//				BlackLineRight = i;
-//			}
-//		}
-//
-//		// Find black line on the left side
-//		for (i = 64; i > 0; i--)// calculate difference between the pixels
-//		{
-//			ImageDataDifference[i] = abs(ImageData[i] - ImageData[i - 1]);
-//		}
-//		CompareData = THRESHOLD;					// threshold
-//		BlackLineLeft = 1;
-//		for (i = 64; i > 2; i--)// only down to pixel 3, not 1
-//		{
-//			if (ImageDataDifference[i] > CompareData) {
-//				CompareData = ImageDataDifference[i];
-//				BlackLineLeft = i;
-//			}
-//		}
-//
-//		// Find middle of the road, 64 for strait road
-//		RoadMiddle = (BlackLineLeft + BlackLineRight) / 2;
-//
-//		// if a line is only on the the left side
-//		if (BlackLineRight > 124) {
-//			RoadMiddle = BlackLineLeft + 50;
-//		}
-//		// if a line is only on the the right side
-//		if (BlackLineLeft < 3) {
-//			RoadMiddle = BlackLineRight - 50;
-//		}
-//		// if no line on left and right side
-//		if ((BlackLineRight > 124) && (BlackLineLeft < 3)) {
-//			RoadMiddle = 64;
-//		}
-//
-//		// Store old value
-//		diff_old = diff;// store old difference
-//
-//		// Find difference from real middle
-//		diff = RoadMiddle - 64;// calculate actual difference
-//
-//		// plausibility check
-//		if (abs(diff - diff_old) > 50) {
-//			diff = diff_old;
-//		}
-//
-//		// Direction Control Loop: PD Controller
-//		servo_position = KP * diff + KDP * (diff - diff_old);
-//
-//		// Set channel 0 PWM_Servo position
-//		serwoWrite(-255);
-
-//		// Set Motor Speed
-//		TPM0_C1V = 100;// TPM0 channel1 left Motor 1 In 1 slow forward
-//		TPM0_C5V = 100;// TPM0 channel5 right Motor 2 In 2 slow forward
-//
-	//GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);						// red LED off
+	
 	GPIOC_PDOR &= ~GPIO_PDOR_PDO(1<<1);						// indicator off
 
 }
@@ -742,40 +682,6 @@ void ImageCapture(void)
 	TAOS_DELAY;
 	TAOS_DELAY;
 	TAOS_CLK_LOW;
-//	unsigned char i;
-//	ADC0_CFG2 |= 0x10;							// select B side of the MUX
-//	TAOS_SI_HIGH;
-//	TAOS_DELAY;
-//	TAOS_CLK_HIGH;
-//	TAOS_DELAY;
-//	TAOS_SI_LOW;
-//	TAOS_DELAY;
-//	// inputs data from camera (first pixel)
-//	ADC0_SC1A = 11;							// set ADC0 channel 11
-//	while ((ADC0_SC1A & ADC_SC1_COCO_MASK) == 0);	// wait until ADC is ready
-//	ImageData[0] = ADC0_RA ;						// return value
-//	TAOS_CLK_LOW;
-//
-//	for (i = 1; i < 128; i++)
-//	{
-//		TAOS_DELAY;
-//		TAOS_DELAY;
-//		TAOS_CLK_HIGH;
-//		TAOS_DELAY;
-//		TAOS_DELAY;
-//		// inputs data from camera (one pixel each time through loop)
-//		ADC0_SC1A = 11;							// set ADC0 channel 11
-//		while ((ADC0_SC1A & ADC_SC1_COCO_MASK) == 0);// wait until ADC is ready
-//		ImageData[i] = ADC0_RA ;						// return value
-//		TAOS_CLK_LOW;
-//	}
-//
-//	TAOS_DELAY;
-//	TAOS_DELAY;
-//	TAOS_CLK_HIGH;
-//	TAOS_DELAY;
-//	TAOS_DELAY;
-//	TAOS_CLK_LOW;
 }
 
 void calculateServoLeft(void)
@@ -786,7 +692,7 @@ void calculateServoLeft(void)
 	}
 	else
 	{
-		servoWrite((float) BlackLinePos[0] / 64.0 * 255);
+		servoWrite((float)((float)BlackLinePos[0]/64.0)  * 255);
 	}
 }
 
@@ -798,7 +704,7 @@ void calculateServoRight(void)
 	}
 	else
 	{
-		servoWrite(-(float) BlackLinePos[0] / 64.0 * 255);
+		servoWrite(-(float)((float)BlackLinePos[0]/64.0) * 255);
 	}
 }
 
@@ -818,21 +724,19 @@ void calculateServoNewPos(void)
 	}
 }
 
-int servoWrite(int _servoValue)
+void servoWrite(int _servoValue) //-255 to 255
 {
 	// if servo outside boundary
 	if (_servoValue > SERVO_MAXIMAL_VALUE)
 	{
 		TPM1_C0V = SERVO_MAXIMAL_REGISTER_VALUE;
 	}
-	if (_servoValue < SERVO_MINIMAL_VALUE )
+	else if (_servoValue < SERVO_MINIMAL_VALUE )
 	{
 		TPM1_C0V = SERVO_MINIMAL_REGISTER_VALUE;
 	}
-
 	else //if servo value is good
 	{
 		TPM1_C0V =(_servoValue - SERVO_MINIMAL_VALUE) * (SERVO_MAXIMAL_REGISTER_VALUE - SERVO_MINIMAL_REGISTER_VALUE) / (SERVO_MAXIMAL_VALUE - SERVO_MINIMAL_VALUE) + SERVO_MINIMAL_REGISTER_VALUE;
 	}
-	return TPM1_C0V;
 }

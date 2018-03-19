@@ -41,3 +41,6 @@ FLASH/Project_Settings/Startup_Code/__arm_end.args
 FLASH/NXP_Cup_Alamak_Minimal.map
 FLASH/NXP_Cup_Alamak_Minimal.elf
 FLASH/NXP_Cup_Alamak_Minimal.args
+FLASH/Sources/main.o
+FLASH/NXP_Cup_Alamak_Minimal.elf
+FLASH/NXP_Cup_Alamak_Minimal.elf

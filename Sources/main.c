@@ -629,9 +629,6 @@ void FTM1_IRQHandler()				// TPM1 ISR
 	}
 	else if (numberOfDer <= 2)
 	{
-//		char uartBuff[7];
-//		sprintf(uartBuff, "%03d\n\n", BlackLinePos[0]);
-//		printt("der\n\r");
 
 		int servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE;
 

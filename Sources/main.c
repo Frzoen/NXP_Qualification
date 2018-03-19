@@ -539,6 +539,7 @@ int main(void)
 
 void FTM1_IRQHandler()				// TPM1 ISR
 {
+	printt("test\n\r");
 	TPM1_SC |= 0x80;							// clear TPM1 ISR flag
 	//GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);						// red LED on
 	GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);							// indicator on
@@ -631,7 +632,11 @@ void FTM1_IRQHandler()				// TPM1 ISR
 //		char uartBuff[7];
 //		sprintf(uartBuff, "%03d\n\n", BlackLinePos[0]);
 //		printt("der\n\r");
+<<<<<<< HEAD
 		int servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE;
+=======
+		
+>>>>>>> ab3dd035f70976bdf71d6902b84fca3430edde94
 		if (state & LEWO_FLAG)
 		{
 			TPM0_C1V = CURVE_SPEED;	// TPM0 channel1 left Motor 1 In 1 slow forward

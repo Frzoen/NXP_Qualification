@@ -325,13 +325,11 @@
 #define	TAOS_SI_LOW				GPIOB_PDOR &= ~(1<<8)	// SI on PTB8
 #define	TAOS_CLK_HIGH			GPIOB_PDOR |= (1<<9)	// CLK on PTB9
 #define	TAOS_CLK_LOW			GPIOB_PDOR &= ~(1<<9)	// CLK on PTB9
-#define SERVO_DEAFULT_REGISTER_VALUE 8200
+#define SERVO_OFFSET 200
+#define SERVO_DEAFULT_REGISTER_VALUE 8200 + SERVO_OFFSET
 #define SERVO_SAFE_ZONE_REGISTER_VALUE 900
 #define SERVO_MINIMAL_REGISTER_VALUE SERVO_DEAFULT_REGISTER_VALUE - SERVO_SAFE_ZONE_REGISTER_VALUE
 #define SERVO_MAXIMAL_REGISTER_VALUE SERVO_DEAFULT_REGISTER_VALUE + SERVO_SAFE_ZONE_REGISTER_VALUE
-
-#define DEFAULT_SPEED 150
-#define CURVE_SPEED 120
 
 #define SERVO_MINIMAL_VALUE -255
 #define SERVO_MAXIMAL_VALUE 255
@@ -375,8 +373,6 @@ int servo_position = 0;		// actual position of the servo relative to middle
 int CompareData;						// set data for comparison to find max
 
 volatile uint8_t state = 0x00;
-
-
 
 void servoWrite(int _serwoValue);
 void calculateServoLeft(void);
@@ -525,7 +521,7 @@ int main(void)
 	// enable interrupts on core level
 
 	//status preparation
-	state |= START_FLAG | SRODEK_FLAG | ODDALANIE_FLAG;
+	state |= START_FLAG | SRODEK_FLAG;
 
 	// Main loop
 	for (;;)
@@ -539,7 +535,6 @@ int main(void)
 
 void FTM1_IRQHandler()				// TPM1 ISR
 {
-	printt("test\n\r");
 	TPM1_SC |= 0x80;							// clear TPM1 ISR flag
 	//GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);						// red LED on
 	GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);							// indicator on
@@ -601,21 +596,24 @@ void FTM1_IRQHandler()				// TPM1 ISR
 		}
 	}
 
-	if (numberOfDer == 0 && state & ODDALANIE_FLAG)
+	if (numberOfDer == 0)
 	{
 		GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);		// green LED off
 		GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);		// blue LED off	
 		GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);		// red LED off
-		
-		TPM1_C0V = SERVO_DEAFULT_REGISTER_VALUE;
-
-		TPM0_C1V = DEFAULT_SPEED;// TPM0 channel1 left Motor 1 In 1 slow forward
-		TPM0_C5V = DEFAULT_SPEED;// TPM0 channel5 right Motor 2 In 2 slow forward
-	}
-	else if (numberOfDer == 2)
-	{
 		state = START_FLAG | SRODEK_FLAG;
 		TPM1_C0V = SERVO_DEAFULT_REGISTER_VALUE;
+		GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);
+		// green LED on
+		GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);
+		// blue LED on	
+		GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);
+	}
+	else if (numberOfDer >= 2)
+	{
+		
+		state = START_FLAG | SRODEK_FLAG;
+		TPM1_C0V = SERVO_DEAFULT_REGISTER_VALUE - (((BlackLinePos[1] + BlackLinePos[0])/2-64)*10);
 		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);
 		// green LED on
 		GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);
@@ -623,19 +621,20 @@ void FTM1_IRQHandler()				// TPM1 ISR
 		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);
 		// red LED on
 
-		TPM0_C1V = DEFAULT_SPEED;// TPM0 channel1 left Motor 1 In 1 slow forward
-		TPM0_C5V = DEFAULT_SPEED;// TPM0 channel5 right Motor 2 In 2 slow forward
+		TPM0_C1V = 150;			// TPM0 channel1 left Motor 1 In 1 slow forward
+		TPM0_C5V = 150;			// TPM0 channel5 right Motor 2 In 2 slow forward
 		// GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);    // indicator on
 	}
-	else if (numberOfDer <= 2)
+	else if (numberOfDer < 2)
 	{
-
+//		char uartBuff[7];
+//		sprintf(uartBuff, "%03d\n\n", BlackLinePos[0]);
+//		printt("der\n\r");
 		int servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE;
-
 		if (state & LEWO_FLAG)
 		{
-			TPM0_C1V = CURVE_SPEED;	// TPM0 channel1 left Motor 1 In 1 slow forward
-			TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - 1);// TPM0 channel5 right Motor 2 In 2 slow forward
+			TPM0_C1V = 150 - (BlackLinePos[0] - 1);	// TPM0 channel1 left Motor 1 In 1 slow forward
+			TPM0_C5V = 150 - (BlackLinePos[0] - 1);// TPM0 channel5 right Motor 2 In 2 slow forward
 			if ((BlackLinePos[0]) < 64)
 			{
 				servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
@@ -661,8 +660,8 @@ void FTM1_IRQHandler()				// TPM1 ISR
 		}
 		else if (state & PRAWO_FLAG)
 		{
-			TPM0_C1V = CURVE_SPEED - (64-(BlackLinePos[0] - 64));// TPM0 channel1 left Motor 1 In 1 slow forward
-			TPM0_C5V = CURVE_SPEED;// TPM0 channel5 right Motor 2 In 2 slow forward
+			TPM0_C1V = 150 - (64-(BlackLinePos[0] - 64));// TPM0 channel1 left Motor 1 In 1 slow forward
+			TPM0_C5V = 150 - (64-(BlackLinePos[0] - 64));// TPM0 channel5 right Motor 2 In 2 slow forward
 			if ((BlackLinePos[0]) >= 64)
 			{
 				servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
@@ -689,8 +688,8 @@ void FTM1_IRQHandler()				// TPM1 ISR
 		{
 			if (BlackLinePos[0] < LINESCAN_MIDDLE)
 			{
-				TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - 1);	// TPM0 channel1 left Motor 1 In 1 slow forward
-				TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - 1);// TPM0 channel5 right Motor 2 In 2 slow forward
+				TPM0_C1V = 150 - (BlackLinePos[0] - 1);	// TPM0 channel1 left Motor 1 In 1 slow forward
+				TPM0_C5V = 150 - (BlackLinePos[0] - 1);// TPM0 channel5 right Motor 2 In 2 slow forward
 
 				state &= SRODEK_FLAG;
 				state |= LEWO_FLAG;
@@ -700,8 +699,8 @@ void FTM1_IRQHandler()				// TPM1 ISR
 			}
 			else if (BlackLinePos[0] >= LINESCAN_MIDDLE)
 			{
-				TPM0_C1V = CURVE_SPEED - (64-(BlackLinePos[0] - 64));// TPM0 channel1 left Motor 1 In 1 slow forward
-				TPM0_C5V = CURVE_SPEED - (64-(BlackLinePos[0] - 64));// TPM0 channel5 right Motor 2 In 2 slow forward
+				TPM0_C1V = 150 - (64-(BlackLinePos[0] - 64));// TPM0 channel1 left Motor 1 In 1 slow forward
+				TPM0_C5V = 150 - (64-(BlackLinePos[0] - 64));// TPM0 channel5 right Motor 2 In 2 slow forward
 				state &= SRODEK_FLAG;
 				state |= PRAWO_FLAG;
 				servoWrite((BlackLinePos[0] - 64) * -4);

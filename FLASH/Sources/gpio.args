@@ -4,10 +4,10 @@
 -g3
 -gdwarf-2
 -gstrict-dwarf
--I"C:/Users/biele/Documents/The NXP Cup/NXP_Qualification/Project_Headers"
--I"C:/Users/biele/Documents/The NXP Cup/NXP_Qualification/Project_Settings/Startup_Code"
--I"C:/Freescale/CW MCU v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include"
--I"C:/Freescale/CW MCU v11.0/MCU/ARM_GCC_Support/ewl/EWL_Runtime/include"
+-I"C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers"
+-I"C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Settings/Startup_Code"
+-I"D:/Freescale/CW MCU v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include"
+-I"D:/Freescale/CW MCU v11.0/MCU/ARM_GCC_Support/ewl/EWL_Runtime/include"
 -O0
 -ffunction-sections
 -fdata-sections

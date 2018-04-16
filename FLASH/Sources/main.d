@@ -12,12 +12,6 @@ Sources/main.o: ../Sources/main.c \
  D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/cstdint \
  D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/limits_api.h \
  D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/ewl_lib_ext1.h \
- C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/mcg.h \
- C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/gpio.h \
- C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/tmp.h \
- C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/adc.h \
- C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/uart.h \
- C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/dma.h \
  D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/stdio.h \
  D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/cstdio \
  D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/cstddef \
@@ -58,18 +52,6 @@ D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/cstdint:
 D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/limits_api.h:
 
 D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/ewl_lib_ext1.h:
-
-C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/mcg.h:
-
-C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/gpio.h:
-
-C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/tmp.h:
-
-C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/adc.h:
-
-C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/uart.h:
-
-C:/Users/Mrozi/workspace_nxp/NXP_Cup_Alamak_Minimal/Project_Headers/dma.h:
 
 D:/Freescale/CW\ MCU\ v11.0/MCU/ARM_GCC_Support/ewl/EWL_C/include/stdio.h:
 

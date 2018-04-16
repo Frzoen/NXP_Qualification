@@ -6,6 +6,7 @@
 
 #include "derivative.h" /* include peripheral declarations */
 #include <stdio.h>
+#include <math.h>
 
 // Define threshold for Camera Black Line recognition
 #define THRESHOLD				100			// Difference between black and white
@@ -46,8 +47,8 @@
 
 #define LINESCAN_MIDDLE 64
 
-#define _KP 20
-#define _KD 20
+#define _KP 15
+#define _KD 5
 #define _KD_SPEED 5
 
 // Function declaration
@@ -74,12 +75,14 @@ int servo_position = 0;		// actual position of the servo relative to middle
 int CompareData;						// set data for comparison to find max
 
 volatile uint8_t state = 0x00;				// simple machine state
+volatile uint8_t servo_state = 0x00;				// simple machine state
 
 // functions declaration
-void servoWrite(int _serwoValue); 	// not used
+void servoWrite(int _serwoValue);
 void calculateServoLeft(void);		// not used
 void calculateServoRight(void);		// not used
 void calculateServoNewPos(void);	// not used
+void wysterujSerwo(uint8_t _state, int line_pos, int line_pos_old);
 
 // Main program
 int main(void)
@@ -309,7 +312,16 @@ void FTM1_IRQHandler()									// TPM1 ISR
 	{
 
 		state = START_FLAG | SRODEK_FLAG;
-		TPM1_C0V = SERVO_DEAFULT_REGISTER_VALUE - (((BlackLinePos[1] + BlackLinePos[0])/2-64)*_KP) - (BlackLinePos[0]-BlackLinePosOld[0] + BlackLinePos[1]-BlackLinePosOld[1])*_KD;
+		if (abs(64 - BlackLinePos[0]) < abs(BlackLinePos[1] - 64))
+		{
+			servo_state = LEWO_FLAG;
+			wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
+		}
+		else
+		{
+			servo_state = PRAWO_FLAG;
+			wysterujSerwo(servo_state, BlackLinePos[1], BlackLinePosOld[1]);
+		}
 		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);	// green LED on
 		GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);		// blue LED on	
 		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);	// red LED on
@@ -321,26 +333,14 @@ void FTM1_IRQHandler()									// TPM1 ISR
 	}
 	else if (numberOfDer < 2)
 	{
-		int servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE;
+
 		if (state & LEWO_FLAG)
 		{
 
 			TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - 1);	// TPM0 channel1 left Motor 
 			TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - 1);// TPM0 channel5 right Motor 
 
-			if ((BlackLinePos[0]) < 64)
-			{
-				servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
-				- ((BlackLinePos[0] - 1) * _KP - (BlackLinePos[0] - BlackLinePosOld[0])*_KD);
-				if (servo_reg_val > SERVO_MINIMAL_REGISTER_VALUE)
-				{
-					TPM1_C0V = servo_reg_val;
-				}
-				else
-				TPM1_C0V = SERVO_MINIMAL_REGISTER_VALUE;
-			}
-			else
-			TPM1_C0V = SERVO_MINIMAL_REGISTER_VALUE;
+			wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
 
 			// all LEDs off
 			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);// green LED off
@@ -354,19 +354,8 @@ void FTM1_IRQHandler()									// TPM1 ISR
 			TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel1 left Motor 
 			TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel5 right Motor
 
-			if ((BlackLinePos[0]) >= 64)
-			{
-				servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
-				+ ((64-(BlackLinePos[0] - 64)) * _KP + (BlackLinePos[0] - BlackLinePosOld[0])*_KD);
-				if (servo_reg_val < SERVO_MAXIMAL_REGISTER_VALUE)
-				{
-					TPM1_C0V = servo_reg_val;
-				}
-				else
-				TPM1_C0V = SERVO_MAXIMAL_REGISTER_VALUE;
-			}
-			else
-			TPM1_C0V = SERVO_MAXIMAL_REGISTER_VALUE; // all LEDs off
+			wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
+
 			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);// red LED off
 			GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);// blue LED off	
 
@@ -377,24 +366,24 @@ void FTM1_IRQHandler()									// TPM1 ISR
 			if (BlackLinePos[0] < LINESCAN_MIDDLE)
 			{
 
-				TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel1 left Motor 
+				TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED; // TPM0 channel1 left Motor 
 				TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel5 right Motor 
-
 				state &= SRODEK_FLAG;
 				state |= LEWO_FLAG;
-
-				servoWrite((BlackLinePos[0] - 1) * 4);
+				servo_state = LEWO_FLAG;
+				wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
 
 			}
 			else if (BlackLinePos[0] >= LINESCAN_MIDDLE)
 			{
 
-				TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel1 left Motor 
+				TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED; // TPM0 channel1 left Motor 
 				TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel5 right Motor 
 
 				state &= SRODEK_FLAG;
 				state |= PRAWO_FLAG;
-				servoWrite((BlackLinePos[0] - 64) * -4);
+				servo_state = PRAWO_FLAG;
+				wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
 			}
 			// all LEDs off
 			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);// red LED off
@@ -449,27 +438,31 @@ void ImageCapture(void)
 	TAOS_CLK_LOW;
 }
 
-void calculateServoLeft(void)
+void wysterujSerwo(uint8_t _state, int line_pos, int line_pos_old)
 {
-	if (BlackLinePos[0] > LINESCAN_MIDDLE)
+	int servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE;
+	if (_state & LEWO_FLAG)
 	{
-		servoWrite(SERVO_MAXIMAL_VALUE);
+		servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
+				- (pow(1.0671, line_pos) - (line_pos - line_pos_old) * _KD);
+		if (servo_reg_val > SERVO_MINIMAL_REGISTER_VALUE)
+		{
+			TPM1_C0V = servo_reg_val;
+		}
+		else
+		TPM1_C0V = SERVO_MINIMAL_REGISTER_VALUE;
 	}
-	else
+	if (_state & PRAWO_FLAG)
 	{
-		servoWrite((float) ((float) BlackLinePos[0] / 64.0) * 255);
-	}
-}
-
-void calculateServoRight(void)
-{
-	if (BlackLinePos[0] < LINESCAN_MIDDLE)
-	{
-		servoWrite(SERVO_MINIMAL_VALUE);
-	}
-	else
-	{
-		servoWrite(-(float) ((float) BlackLinePos[0] / 64.0) * 255);
+		servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
+				+ (pow(1.0671, abs((64 - (line_pos - 64)))) * _KP
+						+ (line_pos - line_pos_old) * _KD);
+		if (servo_reg_val < SERVO_MAXIMAL_REGISTER_VALUE)
+		{
+			TPM1_C0V = servo_reg_val;
+		}
+		else
+		TPM1_C0V = SERVO_MAXIMAL_REGISTER_VALUE;
 	}
 }
 

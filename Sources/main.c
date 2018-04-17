@@ -1,12 +1,11 @@
-/*
- * FRDM-KL25 Freedom Board NXP Cup Minimal Program
- * Version 0.9, 16.03.2018
- *(c) MKNMiR Synergia @ PWr
- */
-
 #include "derivative.h" /* include peripheral declarations */
+#include "mcg.h"
+#include "gpio.h"
+#include "tmp.h"
+#include "adc.h"
+#include "uart.h"
+#include "dma.h"
 #include <stdio.h>
-#include <math.h>
 
 // Define threshold for Camera Black Line recognition
 #define THRESHOLD				100			// Difference between black and white
@@ -39,17 +38,15 @@
 #define ODDALANIE_FLAG (1<<7)
 #define PRZYBLIZANIE_FLAG (1<<8)
 
-#define STRAIGHT_SPEED 	150
-#define CURVE_SPEED 	150
+#define STRAIGHT_SPEED 	130
+#define CURVE_SPEED 	130
 
 #define LINESCAN_TRESHOLD_MAIN 8
 #define LINESCAN_TRESHOLD_EDGE 20
 
 #define LINESCAN_MIDDLE 64
 
-#define _KP 15
-#define _KD 5
-#define _KD_SPEED 5
+#define _KP 20
 
 // Function declaration
 void
@@ -59,30 +56,26 @@ abs(int);
 
 // Variable declaration
 int i;										// counter for loops
-int j;										// additional counter
-volatile int numberOfDer;					// counter for pos
+int j;
+volatile int numberOfDer;									// counter for pos
 int temp_reg;								// temporary register
 volatile int ImageData[128];				// array to store the LineScan image
-volatile int ImageDataDifference[128];// array to store the LineScan pixel difference
-int BlackLinePos[4];				// array to store the black line positions
-int BlackLinePosOld[4];				// array to store the black line positions
-int BlackLineRight;	// position of the black line on the right side   <- leave for backwards compability
-int BlackLineLeft;// position of the black line on the left side	  <- leave for backwards compability
+volatile int ImageDataDifference[128];// array to store the PineScan pixel difference
+int BlackLinePos[4];
+int BlackLineRight;				// position of the black line on the right side
+int BlackLineLeft;				// position of the black line on the left side
 int RoadMiddle = 0;							// calculated middle of the road
 int diff = 0;					// actual difference from line middle position
 int diff_old = 0;				// previous difference from line middle position
 int servo_position = 0;		// actual position of the servo relative to middle
 int CompareData;						// set data for comparison to find max
 
-volatile uint8_t state = 0x00;				// simple machine state
-volatile uint8_t servo_state = 0x00;				// simple machine state
+volatile uint8_t state = 0x00;
 
-// functions declaration
 void servoWrite(int _serwoValue);
-void calculateServoLeft(void);		// not used
-void calculateServoRight(void);		// not used
-void calculateServoNewPos(void);	// not used
-void wysterujSerwo(uint8_t _state, int line_pos, int line_pos_old);
+void calculateServoLeft(void);
+void calculateServoRight(void);
+void calculateServoNewPos(void);
 
 // Main program
 int main(void)
@@ -126,7 +119,7 @@ int main(void)
 	SIM_SCGC6 |= SIM_SCGC6_ADC0_MASK;
 
 	// set ADC inputs to ADC inputs
-	PORTC_PCR2 |= PORT_PCR_MUX(0);	// Camera 1 PTC2 ADC0_SE11
+	PORTC_PCR2 |= PORT_PCR_MUX(0);		// Camera 1 PTC2 ADC0_SE11
 
 	// set GPIOs to GPIO function
 	PORTC_PCR1 |= PORT_PCR_MUX(1);  // PTC1 Signal idicator
@@ -136,15 +129,15 @@ int main(void)
 	PORTD_PCR1 |= PORT_PCR_MUX(1);	// PTD1  LED blue
 	PORTB_PCR8 |= PORT_PCR_MUX(1);	// PTB8 Camera SI
 	PORTB_PCR9 |= PORT_PCR_MUX(1);	// PTB9 Camera Clock
-	PORTA_PCR4 = 0;					// Set PTA4 Pin Control Register to Zero
+	PORTA_PCR4 = 0;				// Set PTA4 Pin Control Register to Zero
 	PORTA_PCR4 |= PORT_PCR_MUX(3);	// PTA4 Motor 1 In 1 (speed) PTA4 TPM0_CH1
 	PORTA_PCR5 |= PORT_PCR_MUX(1);	// PTA5 Motor 1 In 2 (direction)
 	PORTC_PCR8 |= PORT_PCR_MUX(1);	// PTC8 Motor 2 In 1 (direction)
 	PORTC_PCR9 |= PORT_PCR_MUX(3);	// PTC9 Motor 2 In 2 (speed) PTC8 TPM0_CH5
 
 	// set GPIO outputs to outputs
-	GPIOB_PDDR |= (1 << 18);		// PTB18 LED red
-	GPIOB_PDDR |= (1 << 19);		// PTB19 LED green
+	GPIOB_PDDR |= (1 << 18);			// PTB18 LED red
+	GPIOB_PDDR |= (1 << 19);			// PTB19 LED green
 	GPIOD_PDDR |= (1 << 1);			// PTD1  LED blue
 	GPIOC_PDDR |= (1 << 1);			// PTC9 Signal indicator  output
 	GPIOB_PDDR |= (1 << 8);			// PTB8 Camera SI
@@ -155,21 +148,21 @@ int main(void)
 	GPIOC_PDDR |= (1 << 9);			// PTC9 Motor 2 In 2 
 
 	// all LEDs off
-	GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);  		// red LED off
-	GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);   		// green LED off
-	GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);    		// blue LED off	
-	GPIOC_PDOR &= ~GPIO_PDOR_PDO(1<<1);    		// indicator off
+	GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);   // red LED off
+	GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);   // green LED off
+	GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);    // blue LED off	
+	GPIOC_PDOR &= ~GPIO_PDOR_PDO(1<<1);    // indicator off
 
-	// GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);  	// red LED on
-	// GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);  	// green LED on
-	// GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);   	// blue LED on	
-	// GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);    	// indicator on
+	// GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);  // red LED on
+	// GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);  // green LED on
+	// GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);   // blue LED on	
+	// GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);    // indicator on
 
 	// set GPIO input to input
-	GPIOC_PDDR &= ~(1 << 0);		// PTC0 Push Button S2
+	GPIOC_PDDR &= ~(1 << 0);			// PTC0 Push Button S2
 
 	// set PWM outputs
-	PORTA_PCR12 |= PORT_PCR_MUX(3);			// Servo Motor 1 Out  PTA12 TPM1_CH0
+	PORTA_PCR12 |= PORT_PCR_MUX(3);	// Servo Motor 1 Out  PTA12 TPM1_CH0
 
 	// configure TPM clock source to be 48 MHz
 	SIM_SOPT2 |= SIM_SOPT2_TPMSRC(1);		// MCGFLLCLK clock or MCGPLLCLK/2
@@ -196,10 +189,10 @@ int main(void)
 	//TPM1_C0V = 9000;				// TPM1 channel0 Servo 1 ca. 1.5 ms (middle)
 
 	// initial configuration of motors
-	TPM0_C1V = 150;					// TPM0 channel1 left Motor 
-	TPM0_C5V = 150;					// TPM0 channel5 right Motor 
-	GPIOA_PDOR &= ~(1 << 5);		// Set PTA5 left Motor 1 In 2 forward
-	GPIOC_PDOR &= ~(1 << 8);		// Set PTC8 right Motor 2 In 1 forward
+	TPM0_C1V = 150;				// TPM0 channel1 left Motor 1 In 1 slow forward
+	TPM0_C5V = 150;				// TPM0 channel5 right Motor 2 In 2 slow forward
+	GPIOA_PDOR &= ~(1 << 5);			// Set PTA5 left Motor 1 In 2 forward
+	GPIOC_PDOR &= ~(1 << 8);			// Set PTC8 right Motor 2 In 1 forward
 
 	// configure interrupts in TPM0
 	TPM1_SC |= TPM_SC_TOIE_MASK;// enable overflow interrupt in TPM1 (10 ms rate)
@@ -227,21 +220,21 @@ int main(void)
 	// Main loop
 	for (;;)
 	{						// endless loop
-	}						// end of endless loop	
+	}								// end of endless loop	
 	return 0;
 }
 
-void FTM1_IRQHandler()									// TPM1 ISR
+void FTM1_IRQHandler()				// TPM1 ISR
 {
-	TPM1_SC |= 0x80;									// clear TPM1 ISR flag
-	//GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);				// red LED on
-	GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);					// indicator on
+	TPM1_SC |= 0x80;							// clear TPM1 ISR flag
+	//GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);						// red LED on
+	GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);						// indicator on
 
 	// Capture Line Scan Image
-	//ImageCapture();// capture LineScan image <- code of basic function moved below
+	//ImageCapture();// capture LineScan image
 
 	unsigned char i;
-	ADC0_CFG2 |= 0x10;								// select B side of the MUX
+	ADC0_CFG2 |= 0x10;							// select B side of the MUX
 	TAOS_SI_HIGH;
 	TAOS_DELAY;
 	TAOS_CLK_HIGH;
@@ -249,7 +242,7 @@ void FTM1_IRQHandler()									// TPM1 ISR
 	TAOS_SI_LOW;
 	TAOS_DELAY;
 	// inputs data from camera (first pixel)
-	ADC0_SC1A = 11;									// set ADC0 channel 11
+	ADC0_SC1A = 11;							// set ADC0 channel 11
 	while ((ADC0_SC1A & ADC_SC1_COCO_MASK) == 0);	// wait until ADC is ready
 	ImageData[0] = ADC0_RA ;						// return value
 	TAOS_CLK_LOW;
@@ -262,7 +255,7 @@ void FTM1_IRQHandler()									// TPM1 ISR
 		TAOS_DELAY;
 		TAOS_DELAY;
 		// inputs data from camera (one pixel each time through loop)
-		ADC0_SC1A = 11;									// set ADC0 channel 11
+		ADC0_SC1A = 11;							// set ADC0 channel 11
 		while ((ADC0_SC1A & ADC_SC1_COCO_MASK) == 0);// wait until ADC is ready
 		ImageData[i] = ADC0_RA ;						// return value
 		TAOS_CLK_LOW;
@@ -287,7 +280,6 @@ void FTM1_IRQHandler()									// TPM1 ISR
 			{
 				if (abs(lastI - i) > LINESCAN_TRESHOLD_EDGE)
 				{
-					BlackLinePosOld[numberOfDer] = BlackLinePos[numberOfDer];
 					BlackLinePos[numberOfDer++] = i;
 					lastI = i;
 				}
@@ -300,6 +292,7 @@ void FTM1_IRQHandler()									// TPM1 ISR
 		GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);		// green LED off
 		GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);		// blue LED off	
 		GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);		// red LED off
+		state = START_FLAG | SRODEK_FLAG;
 		TPM1_C0V = SERVO_DEAFULT_REGISTER_VALUE;
 		GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);
 		// green LED on
@@ -312,89 +305,120 @@ void FTM1_IRQHandler()									// TPM1 ISR
 	{
 
 		state = START_FLAG | SRODEK_FLAG;
-		if (abs(64 - BlackLinePos[0]) < abs(BlackLinePos[1] - 64))
-		{
-			servo_state = LEWO_FLAG;
-			wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
-		}
-		else
-		{
-			servo_state = PRAWO_FLAG;
-			wysterujSerwo(servo_state, BlackLinePos[1], BlackLinePosOld[1]);
-		}
-		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);	// green LED on
-		GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);		// blue LED on	
-		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);	// red LED on
+		TPM1_C0V = SERVO_DEAFULT_REGISTER_VALUE - (((BlackLinePos[1] + BlackLinePos[0])/2-64)*10);
+		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);
+// green LED on
+		GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);
+// blue LED on	
+		GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);
+// red LED on
 
-		TPM0_C1V = STRAIGHT_SPEED;	// TPM0 channel1 left Motor 
-		TPM0_C5V = STRAIGHT_SPEED;	// TPM0 channel5 right Motor 
+		TPM0_C1V = STRAIGHT_SPEED;// TPM0 channel1 left Motor 1 In 1 slow forward
+		TPM0_C5V = STRAIGHT_SPEED;// TPM0 channel5 right Motor 2 In 2 slow forward
 
 		// GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);    // indicator on
 	}
 	else if (numberOfDer < 2)
 	{
-
+//		char uartBuff[7];
+//		sprintf(uartBuff, "%03d\n\n", BlackLinePos[0]);
+//		printt("der\n\r");
+		int servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE;
 		if (state & LEWO_FLAG)
 		{
 
-			TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - 1);	// TPM0 channel1 left Motor 
-			TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - 1);// TPM0 channel5 right Motor 
+			TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - 1);	// TPM0 channel1 left Motor 1 In 1 slow forward
+			TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - 1);// TPM0 channel5 right Motor 2 In 2 slow forward
 
-			wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
+			if ((BlackLinePos[0]) < 64)
+			{
+				servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
+				- ((BlackLinePos[0] - 1) * _KP);
+				if (servo_reg_val > SERVO_MINIMAL_REGISTER_VALUE)
+				{
+					TPM1_C0V = servo_reg_val;
+				}
+				else
+				TPM1_C0V = SERVO_MINIMAL_REGISTER_VALUE;
+			}
+			else
+			TPM1_C0V = SERVO_MINIMAL_REGISTER_VALUE;
 
 			// all LEDs off
-			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);// green LED off
-			GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);// blue LED off	
-			GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);// red LED on
+			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);
+// green LED off
+			GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);
+// blue LED off	
+			GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);
+// red LED on
 
 		}
 		else if (state & PRAWO_FLAG)
 		{
 
-			TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel1 left Motor 
-			TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel5 right Motor
+			TPM0_C1V = CURVE_SPEED - (64-(BlackLinePos[0] - 64));// TPM0 channel1 left Motor 1 In 1 slow forward
+			TPM0_C5V = CURVE_SPEED - (64-(BlackLinePos[0] - 64));// TPM0 channel5 right Motor 2 In 2 slow forward
 
-			wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
+			if ((BlackLinePos[0]) >= 64)
+			{
+				servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
+				+ ((64-(BlackLinePos[0] - 64)) * _KP);
+				if (servo_reg_val < SERVO_MAXIMAL_REGISTER_VALUE)
+				{
+					TPM1_C0V = servo_reg_val;
+				}
+				else
+				TPM1_C0V = SERVO_MAXIMAL_REGISTER_VALUE;
+			}
+			else
+			TPM1_C0V = SERVO_MAXIMAL_REGISTER_VALUE;
+			// all LEDs off
+			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);
+// red LED off
+			GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);
+// blue LED off	
 
-			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);// red LED off
-			GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);// blue LED off	
-
-			GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);// green LED on
+			GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);
+// green LED on
 		}
 		else
 		{
 			if (BlackLinePos[0] < LINESCAN_MIDDLE)
 			{
 
-				TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED; // TPM0 channel1 left Motor 
-				TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel5 right Motor 
+				TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - 1);	// TPM0 channel1 left Motor 1 In 1 slow forward
+				TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - 1);// TPM0 channel5 right Motor 2 In 2 slow forward
+
 				state &= SRODEK_FLAG;
 				state |= LEWO_FLAG;
-				servo_state = LEWO_FLAG;
-				wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
+
+				servoWrite((BlackLinePos[0] - 1) * 4);
 
 			}
 			else if (BlackLinePos[0] >= LINESCAN_MIDDLE)
 			{
 
-				TPM0_C1V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED; // TPM0 channel1 left Motor 
-				TPM0_C5V = CURVE_SPEED - (BlackLinePos[0] - BlackLinePosOld[0])*_KD_SPEED;// TPM0 channel5 right Motor 
+				TPM0_C1V = CURVE_SPEED - (64-(BlackLinePos[0] - 64));// TPM0 channel1 left Motor 1 In 1 slow forward
+				TPM0_C5V = CURVE_SPEED - (64-(BlackLinePos[0] - 64));// TPM0 channel5 right Motor 2 In 2 slow forward
 
 				state &= SRODEK_FLAG;
 				state |= PRAWO_FLAG;
-				servo_state = PRAWO_FLAG;
-				wysterujSerwo(servo_state, BlackLinePos[0], BlackLinePosOld[0]);
+				servoWrite((BlackLinePos[0] - 64) * -4);
 			}
 			// all LEDs off
-			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);// red LED off
-			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);// green LED off
+			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);
+// red LED off
+			GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);
+// green LED off
 
-			GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);// blue LED on	
+			GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);
+// blue LED on	
 		}
 
 	}
 
-	GPIOC_PDOR &= ~GPIO_PDOR_PDO(1<<1);	// indicator off
+	GPIOC_PDOR &= ~GPIO_PDOR_PDO(1<<1);
+// indicator off
 
 }
 
@@ -410,10 +434,10 @@ void ImageCapture(void)
 	TAOS_DELAY;
 	TAOS_SI_LOW;
 	TAOS_DELAY;
-	// inputs data from camera (first pixel)
-	ADC0_SC1A = 11;									// set ADC0 channel 11
+// inputs data from camera (first pixel)
+	ADC0_SC1A = 11;							// set ADC0 channel 11
 	while ((ADC0_SC1A & ADC_SC1_COCO_MASK) == 0);	// wait until ADC is ready
-	ImageData[0] = ADC0_RA ;						// store value
+	ImageData[0] = ADC0_RA ;						// return value
 	TAOS_CLK_LOW;
 
 	for (i = 1; i < 128; i++)
@@ -423,10 +447,10 @@ void ImageCapture(void)
 		TAOS_CLK_HIGH;
 		TAOS_DELAY;
 		TAOS_DELAY;
-		// inputs data from camera (one pixel each time through loop)
-		ADC0_SC1A = 11;									// set ADC0 channel 11
+// inputs data from camera (one pixel each time through loop)
+		ADC0_SC1A = 11;							// set ADC0 channel 11
 		while ((ADC0_SC1A & ADC_SC1_COCO_MASK) == 0);// wait until ADC is ready
-		ImageData[i] = ADC0_RA ;						// store value
+		ImageData[i] = ADC0_RA ;						// return value
 		TAOS_CLK_LOW;
 	}
 
@@ -438,37 +462,33 @@ void ImageCapture(void)
 	TAOS_CLK_LOW;
 }
 
-void wysterujSerwo(uint8_t _state, int line_pos, int line_pos_old)
+void calculateServoLeft(void)
 {
-	int servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE;
-	if (_state & LEWO_FLAG)
+	if (BlackLinePos[0] > LINESCAN_MIDDLE)
 	{
-		servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
-				- (pow(1.0671, line_pos) - (line_pos - line_pos_old) * _KD);
-		if (servo_reg_val > SERVO_MINIMAL_REGISTER_VALUE)
-		{
-			TPM1_C0V = servo_reg_val;
-		}
-		else
-		TPM1_C0V = SERVO_MINIMAL_REGISTER_VALUE;
+		servoWrite(SERVO_MAXIMAL_VALUE);
 	}
-	if (_state & PRAWO_FLAG)
+	else
 	{
-		servo_reg_val = SERVO_DEAFULT_REGISTER_VALUE
-				+ (pow(1.0671, abs((64 - (line_pos - 64)))) * _KP
-						+ (line_pos - line_pos_old) * _KD);
-		if (servo_reg_val < SERVO_MAXIMAL_REGISTER_VALUE)
-		{
-			TPM1_C0V = servo_reg_val;
-		}
-		else
-		TPM1_C0V = SERVO_MAXIMAL_REGISTER_VALUE;
+		servoWrite((float) ((float) BlackLinePos[0] / 64.0) * 255);
+	}
+}
+
+void calculateServoRight(void)
+{
+	if (BlackLinePos[0] < LINESCAN_MIDDLE)
+	{
+		servoWrite(SERVO_MINIMAL_VALUE);
+	}
+	else
+	{
+		servoWrite(-(float) ((float) BlackLinePos[0] / 64.0) * 255);
 	}
 }
 
 void servoWrite(int _servoValue) //-255 to 255
 {
-	// if servo outside boundary
+// if servo outside boundary
 	if (_servoValue > SERVO_MAXIMAL_VALUE)
 	{
 		TPM1_C0V = SERVO_MAXIMAL_REGISTER_VALUE;

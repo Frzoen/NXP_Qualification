@@ -37,6 +37,7 @@
 #define DAJ_STAN_FLAG (1<<6)
 #define ODDALANIE_FLAG (1<<7)
 #define PRZYBLIZANIE_FLAG (1<<8)
+#define NO_STOP (1<<0)
 
 #define STRAIGHT_SPEED 	130
 #define CURVE_SPEED 	130
@@ -75,6 +76,7 @@ int conversionResultADC;
 int Speed = STRAIGHT_SPEED;
 
 volatile uint8_t state = 0x00;
+volatile uint8_t state_stop = 0x00;
 
 void servoWrite(int _serwoValue);
 void calculateServoLeft(void);
@@ -163,7 +165,7 @@ int main(void)
 	// GPIOC_PDOR |= GPIO_PDOR_PDO(1<<1);    // indicator on
 
 	// set GPIO input to input
-	GPIOC_PDDR &= ~(1 << 0);			// PTC0 Push Button S2
+	//GPIOC_PDDR &= ~(1 << 0);			// PTC0 Push Button S2
 
 	// set PWM outputs
 	PORTA_PCR12 |= PORT_PCR_MUX(3);	// Servo Motor 1 Out  PTA12 TPM1_CH0
@@ -193,12 +195,10 @@ int main(void)
 	//TPM1_C0V = 9000;				// TPM1 channel0 Servo 1 ca. 1.5 ms (middle)
 
 	// initial configuration of motors
-	TPM0_C1V = 150;				// TPM0 channel1 left Motor 1 In 1 slow forward
-	TPM0_C5V = 150;				// TPM0 channel5 right Motor 2 In 2 slow forward
+	TPM0_C1V = 0;				// TPM0 channel1 left Motor 1 In 1 slow forward
+	TPM0_C5V = 0;				// TPM0 channel5 right Motor 2 In 2 slow forward
 	GPIOA_PDOR &= ~(1 << 5);			// Set PTA5 left Motor 1 In 2 forward
 	GPIOC_PDOR &= ~(1 << 8);			// Set PTC8 right Motor 2 In 1 forward
-
-	
 
 	// ADC0 clock configuration
 	ADC0_CFG1 |= 0x01;				// clock is bus clock divided by 2 = 12 MHz
@@ -213,47 +213,79 @@ int main(void)
 	NVIC_ICPR |= (1 << 18);			// clear pending interrupt 18
 	NVIC_ISER |= (1 << 18);			// enable interrupt 18
 
-	// enable interrupts globally
-	asm (" CPSIE i ");
-	// enable interrupts on core level
-
 	//status preparation
 	state |= START_FLAG | SRODEK_FLAG;
-	
+
+	TPM1_C0V = SERVO_DEAFULT_REGISTER_VALUE;
+
 	ADC0_SC1A = ADC_SC1_ADCH(14);	// Start reading buttons.
 
-	do {	
-		if (ADC0_SC1A & ADC_SC1_COCO_MASK) {	// If conversion ended.
-			conversionResultADC = ADC0_RA;		// Get conversion result.
-
+	do
+	{
+		if (ADC0_SC1A & ADC_SC1_COCO_MASK)
+		{	// If conversion ended.
+			conversionResultADC = ADC0_RA;// Get conversion result.
 			// Check result ranges.
-			if (conversionResultADC > 590 && conversionResultADC < 620) {
+			if (conversionResultADC > 590 && conversionResultADC < 620)
+			{
 				// Przycisk S2
-				TPM1_SC |= TPM_SC_TOIE_MASK;	// enable overflow interrupt in TPM1 (10 ms rate)
+				TPM1_SC |= TPM_SC_TOIE_MASK;// enable overflow interrupt in TPM1 (10 ms rate)
 				checkingButtons = 1;
-			} else if (conversionResultADC < 100) {
-				// Przycisk S3
-			} else if (conversionResultADC > 680 && conversionResultADC < 700) {
-				// Przycisk S4
-			} else if (conversionResultADC > 800 && conversionResultADC < 820) {
-				// Przycisk S5
-			} else if (conversionResultADC > 825 && conversionResultADC < 840) {
-				// Przycisk S6
-			} else {
-				ADC0_SC1A = ADC_SC1_ADCH(14);	// Start reading buttons.
 			}
-		
-		
-		}	
-	} while (checkingButtons == 1);
-	
-	// Main loop
-	while (1) {						
-	
-		
+			else if (conversionResultADC < 100)
+			{
+				// Przycisk S3
+				GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);// red LED off
+				GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);// green LED off
+				GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);// blue LED off	
+				GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);// red LED on
+				Speed = 150;
+				// 
 
-	}									
-	
+			}
+			else if (conversionResultADC > 680 && conversionResultADC < 700)
+			{
+				// Przycisk S4
+				GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);// red LED off
+				GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);// green LED off
+				GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);// blue LED off	
+				GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);// green LED on
+				GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<18);// red LED on
+				Speed = 140;
+				// 
+
+			}
+			else if (conversionResultADC > 800 && conversionResultADC < 820)
+			{
+				// Przycisk S5
+				GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);// red LED off
+				GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);// green LED off
+				GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);// blue LED off	
+				GPIOB_PDOR &= ~GPIO_PDOR_PDO(1<<19);// green LED on	
+				Speed = 110;
+
+			}
+			else if (conversionResultADC > 825 && conversionResultADC < 840)
+			{
+				// Przycisk S6
+				GPIOB_PDOR |= GPIO_PDOR_PDO(1<<18);// red LED off
+				GPIOB_PDOR |= GPIO_PDOR_PDO(1<<19);// green LED off
+				GPIOD_PDOR |= GPIO_PDOR_PDO(1<<1);// blue LED off	
+				GPIOD_PDOR &= ~GPIO_PDOR_PDO(1<<1);   // blue LED on	
+				state_stop = NO_STOP;
+
+			}
+			ADC0_SC1A = ADC_SC1_ADCH(14);	// Start reading buttons.
+
+		}
+	} while (checkingButtons == 1);
+
+		// Main loop
+	while (1)
+	{
+
+	}
+
 	return 0;
 }
 
@@ -336,7 +368,14 @@ void FTM1_IRQHandler()				// TPM1 ISR
 
 	else if (numberOfDer > 2)
 	{
-		Speed = 0;
+		if (state_stop & NO_STOP)
+		{
+
+		}
+		else
+		{
+			Speed = 0;
+		}
 	}
 	else if (numberOfDer == 2)
 	{

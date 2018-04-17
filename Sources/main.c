@@ -69,6 +69,8 @@ int diff = 0;					// actual difference from line middle position
 int diff_old = 0;				// previous difference from line middle position
 int servo_position = 0;		// actual position of the servo relative to middle
 int CompareData;						// set data for comparison to find max
+int checkingButtons = 1;	// flag that indicates if driving mode is selected
+int conversionResultADC;
 
 volatile uint8_t state = 0x00;
 
@@ -123,7 +125,7 @@ int main(void)
 
 	// set GPIOs to GPIO function
 	PORTC_PCR1 |= PORT_PCR_MUX(1);  // PTC1 Signal idicator
-	PORTC_PCR0 |= PORT_PCR_MUX(1);	// PTC0 Push Button S2
+	PORTC_PCR0 |= PORT_PCR_MUX(0);	// PTC0 Push Button S2
 	PORTB_PCR18 |= PORT_PCR_MUX(1);	// PTB18 LED red
 	PORTB_PCR19 |= PORT_PCR_MUX(1);	// PTB19 LED green
 	PORTD_PCR1 |= PORT_PCR_MUX(1);	// PTD1  LED blue
@@ -194,8 +196,7 @@ int main(void)
 	GPIOA_PDOR &= ~(1 << 5);			// Set PTA5 left Motor 1 In 2 forward
 	GPIOC_PDOR &= ~(1 << 8);			// Set PTC8 right Motor 2 In 1 forward
 
-	// configure interrupts in TPM0
-	TPM1_SC |= TPM_SC_TOIE_MASK;// enable overflow interrupt in TPM1 (10 ms rate)
+	
 
 	// ADC0 clock configuration
 	ADC0_CFG1 |= 0x01;				// clock is bus clock divided by 2 = 12 MHz
@@ -216,11 +217,41 @@ int main(void)
 
 	//status preparation
 	state |= START_FLAG | SRODEK_FLAG;
+	
+	ADC0_SC1A = ADC_SC1_ADCH(14);	// Start reading buttons.
 
+	do {	
+		if (ADC0_SC1A & ADC_SC1_COCO_MASK) {	// If conversion ended.
+			conversionResultADC = ADC0_RA;		// Get conversion result.
+
+			// Check result ranges.
+			if (conversionResultADC > 590 && conversionResultADC < 620) {
+				// Przycisk S2
+				TPM1_SC |= TPM_SC_TOIE_MASK;	// enable overflow interrupt in TPM1 (10 ms rate)
+				checkingButtons = 1;
+			} else if (conversionResultADC < 100) {
+				// Przycisk S3
+			} else if (conversionResultADC > 680 && conversionResultADC < 700) {
+				// Przycisk S4
+			} else if (conversionResultADC > 800 && conversionResultADC < 820) {
+				// Przycisk S5
+			} else if (conversionResultADC > 825 && conversionResultADC < 840) {
+				// Przycisk S6
+			} else {
+				ADC0_SC1A = ADC_SC1_ADCH(14);	// Start reading buttons.
+			}
+		
+		
+		}	
+	} while (checkingButtons == 1);
+	
 	// Main loop
-	for (;;)
-	{						// endless loop
-	}								// end of endless loop	
+	while (1) {						
+	
+		
+
+	}									
+	
 	return 0;
 }
 
